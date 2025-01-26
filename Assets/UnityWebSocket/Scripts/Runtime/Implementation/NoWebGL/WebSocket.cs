@@ -103,7 +103,7 @@ namespace UnityWebSocket
         public void SendAsync(byte[] data)
         {
             if (!isOpening) return;
-            var buffer = new SendBuffer(data, WebSocketMessageType.Binary);
+            var buffer = SendBuffer.GetObject().SetData(data, WebSocketMessageType.Binary);
             sendQueue.Enqueue(buffer);
         }
 
@@ -111,7 +111,7 @@ namespace UnityWebSocket
         {
             if (!isOpening) return;
             var data = Encoding.UTF8.GetBytes(text);
-            var buffer = new SendBuffer(data, WebSocketMessageType.Text);
+            var buffer = SendBuffer.GetObject().SetData(data, WebSocketMessageType.Text);
             sendQueue.Enqueue(buffer);
         }
         #endregion
@@ -120,10 +120,17 @@ namespace UnityWebSocket
         {
             public byte[] data;
             public WebSocketMessageType type;
-            public SendBuffer(byte[] data, WebSocketMessageType type)
+            private static ObjectPool<SendBuffer> _pool = new ObjectPool<SendBuffer>(16, 256);
+            public SendBuffer() { }
+
+            public static SendBuffer GetObject() => _pool.GetObject();
+            public static void ReturnObject(SendBuffer obj) => _pool.ReturnObject(obj);
+
+            public SendBuffer SetData(byte[] data, WebSocketMessageType type)
             {
                 this.data = data;
                 this.type = type;
+                return this;
             }
         }
 
@@ -173,6 +180,7 @@ namespace UnityWebSocket
                     {
                         Log($"Send, type: {buffer.type}, size: {buffer.data.Length}, queue left: {sendQueue.Count}");
                         await socket.SendAsync(new ArraySegment<byte>(buffer.data), buffer.type, true, cts.Token);
+                        SendBuffer.ReturnObject(buffer);
                     }
                     Thread.Sleep(3);
                 }
@@ -213,15 +221,18 @@ namespace UnityWebSocket
                     var result = await socket.ReceiveAsync(segment, cts.Token);
                     ms.Write(segment.Array, 0, result.Count);
                     if (!result.EndOfMessage) continue;
-                    var data = ms.ToArray();
+                    var message = MessageEventArgs.GetObject();
+                    message.SetBytesFromMemoryStream(ms);
                     ms.SetLength(0);
                     switch (result.MessageType)
                     {
                         case WebSocketMessageType.Binary:
-                            HandleMessage(Opcode.Binary, data);
+                            message.SetCode(Opcode.Binary);
+                            HandleMessage(message);
                             break;
                         case WebSocketMessageType.Text:
-                            HandleMessage(Opcode.Text, data);
+                            message.SetCode(Opcode.Text);
+                            HandleMessage(message);
                             break;
                         case WebSocketMessageType.Close:
                             isClosed = true;
@@ -265,10 +276,10 @@ namespace UnityWebSocket
             eventQueue.Enqueue(new OpenEventArgs());
         }
 
-        private void HandleMessage(Opcode opcode, byte[] rawData)
+        private void HandleMessage(MessageEventArgs message)
         {
-            Log($"OnMessage, type: {opcode}, size: {rawData.Length}");
-            eventQueue.Enqueue(new MessageEventArgs(opcode, rawData));
+            Log($"OnMessage, type: {message.Opcode}, size: {message.RawDataCount}");
+            eventQueue.Enqueue(message);
         }
 
         private void HandleClose(ushort code, string reason)
@@ -299,7 +310,9 @@ namespace UnityWebSocket
                 }
                 else if (e is MessageEventArgs)
                 {
-                    OnMessage?.Invoke(this, e as MessageEventArgs);
+                    var message = e as MessageEventArgs;
+                    OnMessage?.Invoke(this, message);
+                    MessageEventArgs.ReturnObject(message);
                 }
                 else if (e is ErrorEventArgs)
                 {

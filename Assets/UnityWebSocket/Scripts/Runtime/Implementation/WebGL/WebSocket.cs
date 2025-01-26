@@ -98,13 +98,19 @@ namespace UnityWebSocket
         internal void HandleOnMessage(byte[] rawData)
         {
             Log($"OnMessage, type: {Opcode.Binary}, size: {rawData.Length}");
-            OnMessage?.Invoke(this, new MessageEventArgs(Opcode.Binary, rawData));
+            var message = MessageEventArgs.GetObject();
+            message.SetData(Opcode.Binary, rawData);
+            OnMessage?.Invoke(this, message);
+            MessageEventArgs.ReturnObject(message, false);
         }
 
         internal void HandleOnMessageStr(string data)
         {
             Log($"OnMessage, type: {Opcode.Text}, size: {data.Length}");
-            OnMessage?.Invoke(this, new MessageEventArgs(Opcode.Text, data));
+            var message = MessageEventArgs.GetObject();
+            message.SetData(Opcode.Text, data);
+            OnMessage?.Invoke(this, message);
+            MessageEventArgs.ReturnObject(message, false);
         }
 
         internal void HandleOnClose(ushort code, string reason)

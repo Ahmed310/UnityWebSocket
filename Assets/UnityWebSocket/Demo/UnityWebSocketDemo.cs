@@ -155,7 +155,7 @@ namespace UnityWebSocket.Demo
         {
             if (e.IsBinary)
             {
-                AddLog(string.Format("Receive Bytes ({1}): {0}", e.Data, e.RawData.Length));
+                AddLog(string.Format("Receive Bytes ({1}): {0}", e.Data, e.RawDataCount));
             }
             else if (e.IsText)
             {

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Text;
 
 namespace UnityWebSocket
@@ -7,18 +8,56 @@ namespace UnityWebSocket
     {
         private byte[] _rawData;
         private string _data;
+        public int RawDataCount;
 
-        internal MessageEventArgs(Opcode opcode, byte[] rawData)
+        public static MessageEventArgs GetObject() => _pool.GetObject();
+        private static ObjectPool<MessageEventArgs> _pool = new ObjectPool<MessageEventArgs>(32, 256);
+
+        public MessageEventArgs() { }
+
+        internal static void ReturnObject(MessageEventArgs obj, bool forceReturn = true)
         {
-            Opcode = opcode;
-            _rawData = rawData;
+            _pool.ReturnObject(obj);
+            if (forceReturn)
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(obj._rawData);
+            }
+
+            obj._rawData = null;
+            obj.RawDataCount = 0;
         }
 
-        internal MessageEventArgs(Opcode opcode, string data)
+        internal void SetCode(Opcode opcode)
+        {
+            Opcode = opcode;
+        }
+
+        internal void SetData(Opcode opcode, byte[] data)
+        {
+            Opcode = opcode;
+            _rawData = data;
+            RawDataCount = data.Length;
+        }
+
+        internal void SetData(Opcode opcode, string data)
         {
             Opcode = opcode;
             _data = data;
         }
+
+        public void SetBytesFromMemoryStream(MemoryStream ms)
+        {
+            if (ms == null) return;
+            if (ms.Length == 0) return;
+            _rawData = System.Buffers.ArrayPool<byte>.Shared.Rent((int)ms.Length);
+            bool result = ms.TryGetBuffer(out ArraySegment<byte> buffer);
+            if (result)
+            {
+                Buffer.BlockCopy(buffer.Array, buffer.Offset, _rawData, 0, (int)ms.Length);
+            }
+            RawDataCount = (int)ms.Length;
+        }
+
 
         /// <summary>
         /// Gets the opcode for the message.
@@ -36,14 +75,7 @@ namespace UnityWebSocket
         /// text and if decoding it to a string has successfully done;
         /// otherwise, <see langword="null"/>.
         /// </value>
-        public string Data
-        {
-            get
-            {
-                SetData();
-                return _data;
-            }
-        }
+        public string Data => _data ?? (RawDataCount > 0 ? Encoding.UTF8.GetString(_rawData, 0, RawDataCount) : null);
 
         /// <summary>
         /// Gets the message data as an array of <see cref="byte"/>.
@@ -51,14 +83,8 @@ namespace UnityWebSocket
         /// <value>
         /// An array of <see cref="byte"/> that represents the message data.
         /// </value>
-        public byte[] RawData
-        {
-            get
-            {
-                SetRawData();
-                return _rawData;
-            }
-        }
+        public ArraySegment<byte> RawData => _rawData != null ? new ArraySegment<byte>(_rawData, 0, RawDataCount) : (_data != null ? new ArraySegment<byte>(Encoding.UTF8.GetBytes(_data)) : default);
+
 
         /// <summary>
         /// Gets a value indicating whether the message type is binary.
@@ -66,13 +92,7 @@ namespace UnityWebSocket
         /// <value>
         /// <c>true</c> if the message type is binary; otherwise, <c>false</c>.
         /// </value>
-        public bool IsBinary
-        {
-            get
-            {
-                return Opcode == Opcode.Binary;
-            }
-        }
+        public bool IsBinary => Opcode == Opcode.Binary;
 
         /// <summary>
         /// Gets a value indicating whether the message type is text.
@@ -80,36 +100,7 @@ namespace UnityWebSocket
         /// <value>
         /// <c>true</c> if the message type is text; otherwise, <c>false</c>.
         /// </value>
-        public bool IsText
-        {
-            get
-            {
-                return Opcode == Opcode.Text;
-            }
-        }
+        public bool IsText => Opcode == Opcode.Text;
 
-        private void SetData()
-        {
-            if (_data != null) return;
-
-            if (RawData == null)
-            {
-                return;
-            }
-
-            _data = Encoding.UTF8.GetString(RawData);
-        }
-
-        private void SetRawData()
-        {
-            if (_rawData != null) return;
-
-            if (_data == null)
-            {
-                return;
-            }
-
-            _rawData = Encoding.UTF8.GetBytes(_data);
-        }
     }
 }
