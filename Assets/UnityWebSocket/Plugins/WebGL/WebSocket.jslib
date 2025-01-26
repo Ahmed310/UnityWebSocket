@@ -164,6 +164,8 @@ var WebSocketLibrary =
         else
             instance.ws = new WebSocket(instance.url);
 
+        instance.ws.binaryType = 'arraybuffer';
+        
         instance.ws.onopen = function()
         {
             if (webSocketManager.support6000)
