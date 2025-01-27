@@ -123,8 +123,8 @@ namespace UnityWebSocket
             private static ObjectPool<SendBuffer> _pool = new ObjectPool<SendBuffer>(16, 256);
             public SendBuffer() { }
 
-            public static SendBuffer GetObject() => _pool.GetObject();
-            public static void ReturnObject(SendBuffer obj) => _pool.ReturnObject(obj);
+            public static SendBuffer GetObject() => _pool.Rent();
+            public static void ReturnObject(SendBuffer obj) => _pool.Return(obj);
 
             public SendBuffer SetData(byte[] data, WebSocketMessageType type)
             {

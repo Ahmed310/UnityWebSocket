@@ -23,7 +23,7 @@ namespace UnityWebSocket
         /// <summary>
         /// Get an object from the pool. Creates a new one if the pool is empty.
         /// </summary>
-        public T GetObject()
+        public T Rent()
         {
             if (_pool.TryDequeue(out var obj))
             {
@@ -36,7 +36,7 @@ namespace UnityWebSocket
         /// <summary>
         /// Return an object to the pool for reuse.
         /// </summary>
-        public void ReturnObject(T obj)
+        public void Return(T obj)
         {
             if (_pool.Count < _maxPoolSize)
             {
