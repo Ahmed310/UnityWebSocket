@@ -5,18 +5,18 @@ namespace UnityWebSocket
 {
     public class ObjectPool<T> where T : class, new()
     {
-        private readonly ConcurrentQueue<T> _pool;
+        private readonly ConcurrentQueue<T> pool;
 
-        private readonly int _maxPoolSize;
+        private readonly int maxPoolSize;
 
-        public ObjectPool(int initialCapacity = 10, int maxPoolSize = 100)
+        public ObjectPool(int initialCapacity = 16, int maxPoolSize = 128)
         {
-            _pool = new ConcurrentQueue<T>();
-            _maxPoolSize = maxPoolSize;
+            pool = new ConcurrentQueue<T>();
+            this.maxPoolSize = maxPoolSize;
 
             for (int i = 0; i < initialCapacity; i++)
             {
-                _pool.Enqueue(new T());
+                pool.Enqueue(new T());
             }
         }
 
@@ -25,7 +25,7 @@ namespace UnityWebSocket
         /// </summary>
         public T Rent()
         {
-            if (_pool.TryDequeue(out var obj))
+            if (pool.TryDequeue(out var obj))
             {
                 return obj;
             }
@@ -38,16 +38,16 @@ namespace UnityWebSocket
         /// </summary>
         public void Return(T obj)
         {
-            if (_pool.Count < _maxPoolSize)
+            if (pool.Count < maxPoolSize)
             {
-                _pool.Enqueue(obj);
+                pool.Enqueue(obj);
             }
         }
 
         /// <summary>
         /// Get the current size of the pool.
         /// </summary>
-        public int PoolSize => _pool.Count;
+        public int PoolSize => pool.Count;
     }
 
 }

@@ -10,15 +10,15 @@ namespace UnityWebSocket
         private string _data;
         public int RawDataCount;
 
-        public static MessageEventArgs GetObject() => _pool.Rent();
-        private static ObjectPool<MessageEventArgs> _pool = new ObjectPool<MessageEventArgs>(32, 256);
+        public static MessageEventArgs GetObject() => pool.Rent();
+        private static ObjectPool<MessageEventArgs> pool = new ObjectPool<MessageEventArgs>(32, 128);
 
         public MessageEventArgs() { }
 
         internal static void ReturnObject(MessageEventArgs obj, bool forceReturn = true)
         {
-            _pool.Return(obj);
-            if (forceReturn)
+            pool.Return(obj);
+            if (obj.IsBinary)
             {
                 System.Buffers.ArrayPool<byte>.Shared.Return(obj._rawData);
             }

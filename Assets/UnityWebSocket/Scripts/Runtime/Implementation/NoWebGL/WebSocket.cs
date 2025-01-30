@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Net.WebSockets;
 using System.IO;
 using System.Collections.Concurrent;
+using System.Buffers;
 
 namespace UnityWebSocket
 {
@@ -100,10 +101,12 @@ namespace UnityWebSocket
             closeProcessing = true;
         }
 
-        public void SendAsync(byte[] data)
+        public void SendAsync(ArraySegment<byte> data)
         {
             if (!isOpening) return;
-            var buffer = SendBuffer.GetObject().SetData(data, WebSocketMessageType.Binary);
+            var tmpBuffer = ArrayPool<byte>.Shared.Rent(data.Count);
+            Buffer.BlockCopy(data.Array, data.Offset, tmpBuffer, 0, data.Count);
+            var buffer = SendBuffer.GetObject().SetData(tmpBuffer, WebSocketMessageType.Binary, true);
             sendQueue.Enqueue(buffer);
         }
 
@@ -111,25 +114,34 @@ namespace UnityWebSocket
         {
             if (!isOpening) return;
             var data = Encoding.UTF8.GetBytes(text);
-            var buffer = SendBuffer.GetObject().SetData(data, WebSocketMessageType.Text);
+            var buffer = SendBuffer.GetObject().SetData(new ArraySegment<byte>(data), WebSocketMessageType.Text, false);
             sendQueue.Enqueue(buffer);
         }
         #endregion
 
         class SendBuffer
         {
-            public byte[] data;
+            public ArraySegment<byte> data;
             public WebSocketMessageType type;
-            private static ObjectPool<SendBuffer> _pool = new ObjectPool<SendBuffer>(16, 256);
+            public bool IsRented;
+            private static ObjectPool<SendBuffer> pool = new ObjectPool<SendBuffer>(16, 128);
             public SendBuffer() { }
 
-            public static SendBuffer GetObject() => _pool.Rent();
-            public static void ReturnObject(SendBuffer obj) => _pool.Return(obj);
+            public static SendBuffer GetObject() => pool.Rent();
+            public static void ReturnObject(SendBuffer obj)
+            {
+                pool.Return(obj);
+                if (obj.IsRented)
+                {
+                    ArrayPool<byte>.Shared.Return(obj.data.Array);
+                }
+            }
 
-            public SendBuffer SetData(byte[] data, WebSocketMessageType type)
+            public SendBuffer SetData(ArraySegment<byte> data, WebSocketMessageType type, bool isRented)
             {
                 this.data = data;
                 this.type = type;
+                this.IsRented = isRented;
                 return this;
             }
         }
@@ -178,8 +190,8 @@ namespace UnityWebSocket
                 {
                     while (!closeProcessing && sendQueue.Count > 0 && sendQueue.TryDequeue(out var buffer))
                     {
-                        Log($"Send, type: {buffer.type}, size: {buffer.data.Length}, queue left: {sendQueue.Count}");
-                        await socket.SendAsync(new ArraySegment<byte>(buffer.data), buffer.type, true, cts.Token);
+                        Log($"Send, type: {buffer.type}, size: {buffer.data.Count}, queue left: {sendQueue.Count}");
+                        await socket.SendAsync(buffer.data, buffer.type, true, cts.Token);
                         SendBuffer.ReturnObject(buffer);
                     }
                     Thread.Sleep(3);
