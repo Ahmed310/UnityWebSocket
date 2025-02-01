@@ -10,19 +10,21 @@ namespace UnityWebSocket
         private string _data;
         public int RawDataCount;
 
+        public bool isRented = false;
         public static MessageEventArgs GetObject() => pool.Rent();
         private static ObjectPool<MessageEventArgs> pool = new ObjectPool<MessageEventArgs>(32, 128);
 
         public MessageEventArgs() { }
 
-        internal static void ReturnObject(MessageEventArgs obj, bool forceReturn = true)
+        internal static void ReturnObject(MessageEventArgs obj)
         {
             pool.Return(obj);
-            if (obj.IsBinary)
+            if (obj.isRented)
             {
                 System.Buffers.ArrayPool<byte>.Shared.Return(obj._rawData);
             }
 
+            obj.isRented = false;
             obj._rawData = null;
             obj.RawDataCount = 0;
         }
@@ -56,6 +58,7 @@ namespace UnityWebSocket
                 Buffer.BlockCopy(buffer.Array, buffer.Offset, _rawData, 0, (int)ms.Length);
             }
             RawDataCount = (int)ms.Length;
+            this.isRented = true;
         }
 
 

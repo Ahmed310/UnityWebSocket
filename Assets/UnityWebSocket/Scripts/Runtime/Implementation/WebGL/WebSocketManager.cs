@@ -1,6 +1,7 @@
 ﻿#if !UNITY_EDITOR && UNITY_WEBGL
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using AOT;
 
@@ -95,12 +96,19 @@ namespace UnityWebSocket
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
         public static void DelegateOnMessageEvent(int instanceId, IntPtr msgPtr, int msgSize)
         {
-            if (sockets.TryGetValue(instanceId, out var socket))
+            try
             {
-                var bytes = new byte[msgSize];
-                Marshal.Copy(msgPtr, bytes, 0, msgSize);
-                socket.HandleOnMessage(bytes);
+                if (sockets.TryGetValue(instanceId, out var socket))
+                {
+                    var bytes = new byte[msgSize];
+                    Marshal.Copy(msgPtr, bytes, 0, msgSize);
+                    socket.HandleOnMessage(bytes);
+                }
             }
+            catch (Exception ex)
+            {
+            }
+            
         }
 
         [MonoPInvokeCallback(typeof(OnMessageStrCallback))]

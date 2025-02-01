@@ -101,7 +101,7 @@ namespace UnityWebSocket
             var message = MessageEventArgs.GetObject();
             message.SetData(Opcode.Binary, rawData);
             OnMessage?.Invoke(this, message);
-            MessageEventArgs.ReturnObject(message, false);
+            MessageEventArgs.ReturnObject(message);
         }
 
         internal void HandleOnMessageStr(string data)
@@ -110,7 +110,7 @@ namespace UnityWebSocket
             var message = MessageEventArgs.GetObject();
             message.SetData(Opcode.Text, data);
             OnMessage?.Invoke(this, message);
-            MessageEventArgs.ReturnObject(message, false);
+            MessageEventArgs.ReturnObject(message);
         }
 
         internal void HandleOnClose(ushort code, string reason)

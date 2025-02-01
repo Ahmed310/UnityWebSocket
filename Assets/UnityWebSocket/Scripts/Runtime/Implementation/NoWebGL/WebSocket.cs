@@ -104,9 +104,9 @@ namespace UnityWebSocket
         public void SendAsync(ArraySegment<byte> data)
         {
             if (!isOpening) return;
-            var tmpBuffer = ArrayPool<byte>.Shared.Rent(data.Count);
-            Buffer.BlockCopy(data.Array, data.Offset, tmpBuffer, 0, data.Count);
-            var buffer = SendBuffer.GetObject().SetData(tmpBuffer, WebSocketMessageType.Binary, true);
+            var buffer = SendBuffer.GetObject(data.Count);
+            data.CopyTo(buffer.data);
+            buffer.type = WebSocketMessageType.Binary;
             sendQueue.Enqueue(buffer);
         }
 
@@ -114,7 +114,9 @@ namespace UnityWebSocket
         {
             if (!isOpening) return;
             var data = Encoding.UTF8.GetBytes(text);
-            var buffer = SendBuffer.GetObject().SetData(new ArraySegment<byte>(data), WebSocketMessageType.Text, false);
+            var buffer = SendBuffer.GetObject(-1);
+            buffer.type = WebSocketMessageType.Text;
+            buffer.data = data;
             sendQueue.Enqueue(buffer);
         }
         #endregion
@@ -123,26 +125,23 @@ namespace UnityWebSocket
         {
             public ArraySegment<byte> data;
             public WebSocketMessageType type;
-            public bool IsRented;
             private static ObjectPool<SendBuffer> pool = new ObjectPool<SendBuffer>(16, 128);
             public SendBuffer() { }
 
-            public static SendBuffer GetObject() => pool.Rent();
+            public static SendBuffer GetObject(int requiredBuffer)
+            {
+                var sendObj = pool.Rent();
+                if (requiredBuffer != -1)
+                    sendObj.data = new ArraySegment<byte>(ArrayPool<byte>.Shared.Rent(requiredBuffer), 0, requiredBuffer);
+                return sendObj;
+            }
             public static void ReturnObject(SendBuffer obj)
             {
                 pool.Return(obj);
-                if (obj.IsRented)
+                if (obj.type == WebSocketMessageType.Binary)
                 {
                     ArrayPool<byte>.Shared.Return(obj.data.Array);
                 }
-            }
-
-            public SendBuffer SetData(ArraySegment<byte> data, WebSocketMessageType type, bool isRented)
-            {
-                this.data = data;
-                this.type = type;
-                this.IsRented = isRented;
-                return this;
             }
         }
 

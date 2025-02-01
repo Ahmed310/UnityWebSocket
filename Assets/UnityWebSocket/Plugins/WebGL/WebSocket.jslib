@@ -164,8 +164,9 @@ var WebSocketLibrary =
         else
             instance.ws = new WebSocket(instance.url);
 
+        // Set binaryType to arraybuffer to prevent blob message
         instance.ws.binaryType = 'arraybuffer';
-        
+
         instance.ws.onopen = function()
         {
             if (webSocketManager.support6000)
