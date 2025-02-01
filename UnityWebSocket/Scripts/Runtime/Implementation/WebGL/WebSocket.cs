@@ -95,13 +95,15 @@ namespace UnityWebSocket
             OnOpen?.Invoke(this, new OpenEventArgs());
         }
 
-        internal void HandleOnMessage(byte[] rawData)
+        internal void HandleOnMessage(byte[] rawData, int size)
         {
-            Log($"OnMessage, type: {Opcode.Binary}, size: {rawData.Length}");
+            Log($"OnMessage, type: {Opcode.Binary}, size: {size}");
             var message = MessageEventArgs.GetObject();
             message.SetData(Opcode.Binary, rawData);
+            message.RawDataCount = size;
+            message.isRented = true;
             OnMessage?.Invoke(this, message);
-            MessageEventArgs.ReturnObject(message, false);
+            MessageEventArgs.ReturnObject(message);
         }
 
         internal void HandleOnMessageStr(string data)
@@ -110,7 +112,7 @@ namespace UnityWebSocket
             var message = MessageEventArgs.GetObject();
             message.SetData(Opcode.Text, data);
             OnMessage?.Invoke(this, message);
-            MessageEventArgs.ReturnObject(message, false);
+            MessageEventArgs.ReturnObject(message);
         }
 
         internal void HandleOnClose(ushort code, string reason)

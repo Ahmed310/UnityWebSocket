@@ -1,6 +1,7 @@
 ﻿#if !UNITY_EDITOR && UNITY_WEBGL
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using AOT;
 
@@ -97,9 +98,9 @@ namespace UnityWebSocket
         {
             if (sockets.TryGetValue(instanceId, out var socket))
             {
-                var bytes = new byte[msgSize];
+                var bytes = System.Buffers.ArrayPool<byte>.Shared.Rent(msgSize);
                 Marshal.Copy(msgPtr, bytes, 0, msgSize);
-                socket.HandleOnMessage(bytes);
+                socket.HandleOnMessage(bytes, msgSize);
             }
         }
 
